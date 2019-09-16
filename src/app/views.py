@@ -67,7 +67,7 @@ def custom_static_(filename):
 
 
 def read_api(query):
-    k8s_token = open('/var/run/secrets/kubernetes.io/serviceaccount/token').read()
+    k8s_token = open('/var/run/pod/kubernetes.io/serviceaccount/token').read()
     ip = os.getenv('KUBERNETES_SERVICE_HOST','127.0.0.1')
     port = os.getenv('KUBERNETES_PORT_443_TCP_PORT','443')
     response = requests.get('https://' + ip + ':' + port + query,
@@ -76,7 +76,7 @@ def read_api(query):
     return response
 
 def post_api(query,data):
-    k8s_token = open('/var/run/secrets/kubernetes.io/serviceaccount/token').read()
+    k8s_token = open('/var/run/pod/kubernetes.io/serviceaccount/token').read()
     ip = os.getenv('KUBERNETES_SERVICE_HOST','127.0.0.1')
     port = os.getenv('KUBERNETES_PORT_443_TCP_PORT','443')
     response = requests.post('https://' + ip + ':' + port + query,
@@ -86,7 +86,7 @@ def post_api(query,data):
     return response
 
 def delete_api(query):
-    k8s_token = open('/var/run/secrets/kubernetes.io/serviceaccount/token').read()
+    k8s_token = open('/var/run/pod/kubernetes.io/serviceaccount/token').read()
     ip = os.getenv('KUBERNETES_SERVICE_HOST','127.0.0.1')
     port = os.getenv('KUBERNETES_PORT_443_TCP_PORT','443')
     response = requests.delete('https://' + ip + ':' + port + query,
@@ -109,22 +109,22 @@ def search_namespaces():
 
 @app.route('/<string:namespace>', methods=['GET'])
 @requires_auth
-def search_secrets(namespace):
-    # secrets=['secret-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA','secret B', 'secret C']
+def search_pod(namespace):
+    # pod=['secret-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA','secret B', 'secret C']
     # namespaces=['nm1','nm2','nm3']
     namespaces=[]
-    secrets=[]
-    r = read_api('/api/v1/namespaces/'+namespace+'/secrets')
+    pod=[]
+    r = read_api('/api/v1/namespaces/'+namespace+'/pod')
     d = json.loads(r.content)
     for i in d['items']:
         if 'default-token' not in i['metadata']['name']:
-            secrets.append(i['metadata']['name'])
+            pod.append(i['metadata']['name'])
     r = read_api('/api/v1/namespaces')
     d = json.loads(r.content)
     for i in d['items']:
         if i['metadata']['name'] != 'kube-system':
             namespaces.append(i['metadata']['name'])
-    return render_template('select_secret.html', namespace=namespace , namespaces=namespaces, secrets=secrets, titulo='Selecciona secret')
+    return render_template('select_secret.html', namespace=namespace , namespaces=namespaces, pod=pod, titulo='Selecciona secret')
 
 @app.route('/<string:namespace>', methods=['POST'])
 @requires_auth
@@ -143,8 +143,8 @@ def create_secret(namespace):
           "type": "Opaque"
     }
     print new
-    rc = post_api('/api/v1/namespaces/'+namespace+'/secrets', data=json.dumps(new))
-    #rc = requests.post('https://104.155.45.53/api/v1/namespaces/'+namespace+'/secrets', data=json.dumps(new), headers={'Authorization':'Basic YWRtaW46QWhpSWdPcmRFOXBVdjRHeA==','content-type': 'application/json'}, auth=('admin', 'AhiIgOrdE9pUv4Gx'),verify=False)
+    rc = post_api('/api/v1/namespaces/'+namespace+'/pod', data=json.dumps(new))
+    #rc = requests.post('https://104.155.45.53/api/v1/namespaces/'+namespace+'/pod', data=json.dumps(new), headers={'Authorization':'Basic YWRtaW46QWhpSWdPcmRFOXBVdjRHeA==','content-type': 'application/json'}, auth=('admin', 'AhiIgOrdE9pUv4Gx'),verify=False)
     print 'CREATE:'
     print rc.status_code
     print rc.json()
@@ -162,19 +162,19 @@ def create_secret(namespace):
 @requires_auth
 def edit_secret(namespace,secret):
     namespaces=[]
-    secrets=[]
-    r = read_api('/api/v1/namespaces/'+namespace+'/secrets')
+    pod=[]
+    r = read_api('/api/v1/namespaces/'+namespace+'/pod')
     d = json.loads(r.content)
     for i in d['items']:
         if 'default-token' not in i['metadata']['name']:
-            secrets.append(i['metadata']['name'])
+            pod.append(i['metadata']['name'])
     r = read_api('/api/v1/namespaces')
     d = json.loads(r.content)
     for i in d['items']:
         if i['metadata']['name'] != 'kube-system':
             namespaces.append(i['metadata']['name'])
 
-    r = read_api('/api/v1/namespaces/'+namespace+'/secrets/'+secret)
+    r = read_api('/api/v1/namespaces/'+namespace+'/pod/'+secret)
     if r.status_code == 200:
         d = json.loads(r.content)
         pprint.pprint(d)
@@ -183,9 +183,9 @@ def edit_secret(namespace,secret):
             for x in d['data']:
                 data[x] = base64.b64decode(d['data'][x])
                 print data[x]
-        return render_template('edit_secret.html',namespaces=namespaces, secrets=secrets, namespace=d['metadata']['namespace'], secret=d['metadata']['name'], data=data, titulo='Edit secret', errors='')
+        return render_template('edit_secret.html',namespaces=namespaces, pod=pod, namespace=d['metadata']['namespace'], secret=d['metadata']['name'], data=data, titulo='Edit secret', errors='')
     else:
-        return render_template('select_secret.html', namespaces=namespaces, secrets=secrets, namespace=namespace, titulo='Select secret', error='Secret does not exist in selected namespace')
+        return render_template('select_secret.html', namespaces=namespaces, pod=pod, namespace=namespace, titulo='Select secret', error='Secret does not exist in selected namespace')
 
 
 @app.route('/<string:namespace>/<string:secret>', methods=['POST'])
@@ -210,29 +210,29 @@ def submit_secret(namespace,secret):
         body = json.dumps(new, indent=4)
         print body
 
-        #rp = requests.get('https://104.155.45.53/api/v1/namespaces/'+namespace+'/secrets/'+secret, auth=('admin', 'AhiIgOrdE9pUv4Gx'),verify=False)
-        rp = read_api('/api/v1/namespaces/'+namespace+'/secrets/'+secret)
+        #rp = requests.get('https://104.155.45.53/api/v1/namespaces/'+namespace+'/pod/'+secret, auth=('admin', 'AhiIgOrdE9pUv4Gx'),verify=False)
+        rp = read_api('/api/v1/namespaces/'+namespace+'/pod/'+secret)
         previous = json.loads(rp.content)
         print 'BACKUP:'
         pprint.pprint(previous)
 
-        #rd = requests.delete('https://104.155.45.53/api/v1/namespaces/'+namespace+'/secrets/'+secret, auth=('admin', 'AhiIgOrdE9pUv4Gx'),verify=False)
-        rd = delete_api('/api/v1/namespaces/'+namespace+'/secrets/'+secret)
+        #rd = requests.delete('https://104.155.45.53/api/v1/namespaces/'+namespace+'/pod/'+secret, auth=('admin', 'AhiIgOrdE9pUv4Gx'),verify=False)
+        rd = delete_api('/api/v1/namespaces/'+namespace+'/pod/'+secret)
         print 'delete:'
         print rd.status_code
         print rd.json()
         print rd.content
 
-        #rc = requests.post('https://104.155.45.53/api/v1/namespaces/'+namespace+'/secrets', data=body, headers={'Authorization':'Basic YWRtaW46QWhpSWdPcmRFOXBVdjRHeA==','content-type': 'application/json'}, auth=('admin', 'AhiIgOrdE9pUv4Gx'),verify=False)
-        rc = post_api('/api/v1/namespaces/'+namespace+'/secrets', data=body)
+        #rc = requests.post('https://104.155.45.53/api/v1/namespaces/'+namespace+'/pod', data=body, headers={'Authorization':'Basic YWRtaW46QWhpSWdPcmRFOXBVdjRHeA==','content-type': 'application/json'}, auth=('admin', 'AhiIgOrdE9pUv4Gx'),verify=False)
+        rc = post_api('/api/v1/namespaces/'+namespace+'/pod', data=body)
         print 'CREATE:'
         print rc.status_code
         print rc.json()
         print rc.content
 
         if rc.status_code != 201:
-            #rr = requests.post('https://104.155.45.53/api/v1/namespaces/'+namespace+'/secrets', data=json.dumps(previous), headers={'Authorization':'Basic YWRtaW46QWhpSWdPcmRFOXBVdjRHeA==','content-type': 'application/json'}, auth=('admin', 'AhiIgOrdE9pUv4Gx'),verify=False)
-            rr = post_api('/api/v1/namespaces/'+namespace+'/secrets', data=json.dumps(previous))
+            #rr = requests.post('https://104.155.45.53/api/v1/namespaces/'+namespace+'/pod', data=json.dumps(previous), headers={'Authorization':'Basic YWRtaW46QWhpSWdPcmRFOXBVdjRHeA==','content-type': 'application/json'}, auth=('admin', 'AhiIgOrdE9pUv4Gx'),verify=False)
+            rr = post_api('/api/v1/namespaces/'+namespace+'/pod', data=json.dumps(previous))
             print 'RESTORE:'
             print rr.status_code
             print rr.json()
@@ -250,19 +250,19 @@ def submit_secret(namespace,secret):
 @requires_auth
 def delete_secret(namespace,secret):
 
-    rd = delete_api('/api/v1/namespaces/'+namespace+'/secrets/'+secret)
+    rd = delete_api('/api/v1/namespaces/'+namespace+'/pod/'+secret)
     print 'delete:'
     print rd.status_code
     print rd.json()
     print rd.content
 
     namespaces=[]
-    secrets=[]
-    r = read_api('/api/v1/namespaces/'+namespace+'/secrets')
+    pod=[]
+    r = read_api('/api/v1/namespaces/'+namespace+'/pod')
     d = json.loads(r.content)
     for i in d['items']:
         if 'default-token' not in i['metadata']['name']:
-            secrets.append(i['metadata']['name'])
+            pod.append(i['metadata']['name'])
     r = read_api('/api/v1/namespaces')
     d = json.loads(r.content)
     for i in d['items']:
@@ -271,7 +271,7 @@ def delete_secret(namespace,secret):
 
     if rd.status_code == 200:
         flash('Removed secret: ' + secret)
-        return render_template('select_secret.html', namespace=namespace , namespaces=namespaces, secrets=secrets, titulo='Select secret')
+        return render_template('select_secret.html', namespace=namespace , namespaces=namespaces, pod=pod, titulo='Select secret')
     else:
         flash('ERROR WHEN REMOVING SECRET: ' + secret)
-        return render_template('select_secret.html', namespace=namespace , namespaces=namespaces, secrets=secrets, titulo='Select secret', error='Secret could not be removed '+secret)
+        return render_template('select_secret.html', namespace=namespace , namespaces=namespaces, pod=pod, titulo='Select secret', error='Secret could not be removed '+secret)
